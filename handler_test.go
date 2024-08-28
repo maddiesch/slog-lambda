@@ -2,12 +2,14 @@ package sloglambda_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
 	"testing"
 	"testing/slogtest"
 
+	"github.com/aws/aws-lambda-go/lambdacontext"
 	sloglambda "github.com/maddiesch/slog-lambda"
 	"github.com/stretchr/testify/assert"
 )
@@ -114,6 +116,32 @@ func TestHandler(t *testing.T) {
 			logger.Info(t.Name())
 
 			assert.Contains(t, buffer.String(), `type="`+t.Name()+`"`)
+		})
+	})
+
+	t.Run("given a lambda context", func(t *testing.T) {
+		ctx := lambdacontext.NewContext(context.Background(), &lambdacontext.LambdaContext{
+			AwsRequestID: "abc-123",
+		})
+
+		t.Run("JSON", func(t *testing.T) {
+			buffer := new(bytes.Buffer)
+			logger := slog.New(sloglambda.NewHandler(buffer, sloglambda.WithJSON()))
+
+			logger.InfoContext(ctx, t.Name())
+
+			assert.Contains(t, buffer.String(), `"requestId":"abc-123"`)
+		})
+
+		t.Run("Text", func(t *testing.T) {
+			t.Skip("Text formatting is not implemented yet")
+
+			buffer := new(bytes.Buffer)
+			logger := slog.New(sloglambda.NewHandler(buffer, sloglambda.WithText()))
+
+			logger.InfoContext(ctx, t.Name())
+
+			assert.Contains(t, buffer.String(), `record.requestId:"abc-123"`)
 		})
 	})
 }
