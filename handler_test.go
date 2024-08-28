@@ -94,6 +94,28 @@ func TestHandler(t *testing.T) {
 			assert.Contains(t, buffer.String(), `"source":{`)
 		})
 	})
+
+	t.Run("WithType", func(t *testing.T) {
+		t.Run("JSON", func(t *testing.T) {
+			buffer := new(bytes.Buffer)
+			logger := slog.New(sloglambda.NewHandler(buffer, sloglambda.WithJSON(), sloglambda.WithType(t.Name())))
+
+			logger.Info(t.Name())
+
+			assert.Contains(t, buffer.String(), `"type":"`+t.Name()+`"`)
+		})
+
+		t.Run("Text", func(t *testing.T) {
+			t.Skip("Text formatting is not implemented yet")
+
+			buffer := new(bytes.Buffer)
+			logger := slog.New(sloglambda.NewHandler(buffer, sloglambda.WithText(), sloglambda.WithType(t.Name())))
+
+			logger.Info(t.Name())
+
+			assert.Contains(t, buffer.String(), `type="`+t.Name()+`"`)
+		})
+	})
 }
 
 func BenchmarkJSON(b *testing.B) {
