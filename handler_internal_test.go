@@ -52,27 +52,45 @@ func Test_lambdaLoggerLevelString(t *testing.T) {
 	}
 }
 
-func Test_logRecord_clean(t *testing.T) {
-	t.Run("when the log record has an empty sub-record", func(t *testing.T) {
-		r := logRecord{
-			"foo": logRecord{},
-		}
-		r.clean()
+func Test_logRecord(t *testing.T) {
+	t.Run("clean", func(t *testing.T) {
+		t.Run("when the log record has an empty sub-record", func(t *testing.T) {
+			r := logRecord{
+				"foo": logRecord{},
+			}
+			r.clean()
 
-		_, ok := r["foo"]
-		assert.False(t, ok, "the sub-record should have been removed")
+			_, ok := r["foo"]
+			assert.False(t, ok, "the sub-record should have been removed")
+		})
+
+		t.Run("when the log record has a non-empty sub-record", func(t *testing.T) {
+			r := logRecord{
+				"foo": logRecord{"bar": "baz", "qux": logRecord{}},
+			}
+			r.clean()
+
+			foo, ok := r["foo"]
+			require.True(t, ok, "the sub-record should not have been removed")
+
+			_, ok = foo.(logRecord)["qux"]
+			assert.False(t, ok, "the sub-record should have been removed")
+		})
 	})
 
-	t.Run("when the log record has a non-empty sub-record", func(t *testing.T) {
-		r := logRecord{
-			"foo": logRecord{"bar": "baz", "qux": logRecord{}},
-		}
-		r.clean()
+	t.Run("append", func(t *testing.T) {
+		t.Run("when given an empty group", func(t *testing.T) {
+			r := logRecord{}
+			r.append(slog.Group("foo"))
 
-		foo, ok := r["foo"]
-		require.True(t, ok, "the sub-record should not have been removed")
+			assert.Equal(t, logRecord{}, r)
+		})
 
-		_, ok = foo.(logRecord)["qux"]
-		assert.False(t, ok, "the sub-record should have been removed")
+		t.Run("when given a non-empty group without a name", func(t *testing.T) {
+			r := logRecord{}
+			r.append(slog.Group("", slog.String("foo", "bar")))
+
+			assert.Equal(t, logRecord{"foo": "bar"}, r)
+		})
 	})
 }
