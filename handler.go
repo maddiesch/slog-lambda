@@ -96,8 +96,11 @@ func NewHandler(w io.Writer, options ...Option) *Handler {
 }
 
 func loggerLevelFromLambdaEnv() slog.Level {
-	env := os.Getenv(lambdaEnvLogLevel)
-	switch strings.ToLower(strings.TrimSpace(env)) {
+	return loggerLevelFromString(os.Getenv(lambdaEnvLogLevel))
+}
+
+func loggerLevelFromString(level string) slog.Level {
+	switch strings.ToLower(strings.TrimSpace(level)) {
 	case "trace":
 		return slog.LevelDebug - 4
 	case "debug":
