@@ -7,7 +7,7 @@ import (
 	sloglambda "github.com/maddiesch/slog-lambda"
 )
 
-func ExampleNewHandler_WithJSON() {
+func ExampleWithJSON() {
 	handler := sloglambda.NewHandler(os.Stdout, sloglambda.WithJSON(), sloglambda.WithoutTime())
 	logger := slog.New(handler)
 
@@ -17,7 +17,7 @@ func ExampleNewHandler_WithJSON() {
 	// Output: {"level":"INFO","msg":"Hello, world!","record":{"functionName":"test-function","functionVersion":"$LATEST"},"type":"app.log"}
 }
 
-func ExampleNewHandler_WithText() {
+func ExampleWithText() {
 	handler := sloglambda.NewHandler(os.Stdout, sloglambda.WithText(), sloglambda.WithoutTime())
 	logger := slog.New(handler)
 
