@@ -1,6 +1,7 @@
 package sloglambda
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -8,6 +9,8 @@ import (
 	"log/slog"
 	"os"
 	"runtime"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -203,11 +206,12 @@ func (h *Handler) Handle(ctx context.Context, record slog.Record) error {
 	if record.PC != 0 && h.source {
 		frames := runtime.CallersFrames([]uintptr{record.PC})
 		frame, _ := frames.Next()
-		value[slog.SourceKey] = &slog.Source{
-			Function: frame.Function,
-			File:     frame.File,
-			Line:     frame.Line,
-		}
+
+		value.append(slog.Group(slog.SourceKey,
+			slog.String("function", frame.Function),
+			slog.String("file", frame.File),
+			slog.Int("line", frame.Line),
+		))
 	}
 
 	gattr := h.gattr
@@ -236,14 +240,27 @@ func (h *Handler) Handle(ctx context.Context, record slog.Record) error {
 
 	topLevel.clean()
 
+	buf := getBuffer()
+	defer putBuffer(buf)
+
+	if h.json {
+		if err := json.NewEncoder(buf).Encode(topLevel); err != nil {
+			return err
+		}
+	} else {
+		if err := writeTextRecord(buf, topLevel, ""); err != nil {
+			return err
+		}
+		// Remove the last trailing space
+		buf.Truncate(buf.Len() - 1)
+		buf.Write([]byte("\n"))
+	}
+
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	if h.json {
-		return json.NewEncoder(h.out).Encode(topLevel)
-	}
-
-	panic("text handler support is not currently implemented")
+	_, err := io.Copy(h.out, buf)
+	return err
 }
 
 var _ slog.Handler = (*Handler)(nil)
@@ -293,7 +310,72 @@ func (r logRecord) clean() {
 	}
 }
 
+func (r logRecord) keys() []string {
+	keys := make([]string, 0, len(r))
+	for k := range r {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+var bufferPool = sync.Pool{
+	New: func() any {
+		b := bytes.NewBuffer(nil)
+		b.Grow(1024)
+		return b
+	},
+}
+
+func getBuffer() *bytes.Buffer {
+	return bufferPool.Get().(*bytes.Buffer)
+}
+
+func putBuffer(b *bytes.Buffer) {
+	const maxBufferSize = 16 << 10
+
+	if b.Cap() <= maxBufferSize {
+		b.Reset()
+		bufferPool.Put(b)
+	}
+}
+
 type groupOrAttrs struct {
 	group string      // group name if non-empty
 	attrs []slog.Attr // attrs if non-empty
+}
+
+func writeTextRecord(w io.Writer, record logRecord, path string) error {
+	keys := record.keys()
+	slices.Sort(keys)
+
+	for _, key := range keys {
+		value := record[key]
+		if path != "" {
+			key = path + "." + key
+		}
+
+		if _, ok := value.(logRecord); !ok {
+			w.Write([]byte(key))
+			w.Write([]byte("="))
+		}
+
+		switch v := value.(type) {
+		case logRecord:
+			if err := writeTextRecord(w, v, key); err != nil {
+				return err
+			}
+		case string:
+			w.Write([]byte(strconv.Quote(v)))
+		case fmt.Stringer:
+			w.Write([]byte(v.String()))
+		default:
+			fmt.Fprintf(w, "%v", v)
+		}
+
+		if _, ok := value.(logRecord); !ok {
+			w.Write([]byte(" "))
+		}
+	}
+
+	return nil
 }

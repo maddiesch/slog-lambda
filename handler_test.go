@@ -6,12 +6,15 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"strconv"
+	"strings"
 	"testing"
 	"testing/slogtest"
 
 	"github.com/aws/aws-lambda-go/lambdacontext"
 	sloglambda "github.com/maddiesch/slog-lambda"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestHandler(t *testing.T) {
@@ -34,8 +37,6 @@ func TestHandler(t *testing.T) {
 		})
 
 		t.Run("Text", func(t *testing.T) {
-			t.Skip("Text formatting is not implemented yet")
-
 			buffer := new(bytes.Buffer)
 			newHandler := func(t *testing.T) slog.Handler {
 				t.Cleanup(buffer.Reset)
@@ -45,7 +46,38 @@ func TestHandler(t *testing.T) {
 
 			result := func(t *testing.T) map[string]any {
 				result := make(map[string]any)
-				json.Unmarshal(buffer.Bytes(), &result)
+
+				unquote := func(s string) string {
+					if len(s) == 0 || s[0] != '"' {
+						return s
+					}
+
+					s, err := strconv.Unquote(s)
+					require.NoError(t, err)
+					return s
+				}
+
+				parts := strings.Split(strings.TrimSpace(buffer.String()), " ")
+				for _, entry := range parts {
+					parts := strings.SplitN(entry, "=", 2)
+					path := strings.Split(parts[0], ".")
+					if len(path) == 1 {
+						result[path[0]] = unquote(parts[1])
+						continue
+					}
+
+					v := result
+
+					for i := 0; i < len(path)-1; i++ {
+						if _, ok := v[path[i]]; !ok {
+							v[path[i]] = make(map[string]any)
+						}
+						v = v[path[i]].(map[string]any)
+					}
+
+					v[path[len(path)-1]] = unquote(parts[1])
+				}
+
 				return result
 			}
 
@@ -64,8 +96,6 @@ func TestHandler(t *testing.T) {
 		})
 
 		t.Run("Text", func(t *testing.T) {
-			t.Skip("Text formatting is not implemented yet")
-
 			buffer := new(bytes.Buffer)
 			logger := slog.New(sloglambda.NewHandler(buffer, sloglambda.WithText(), sloglambda.WithoutTime()))
 
@@ -86,14 +116,14 @@ func TestHandler(t *testing.T) {
 		})
 
 		t.Run("Text", func(t *testing.T) {
-			t.Skip("Text formatting is not implemented yet")
-
 			buffer := new(bytes.Buffer)
 			logger := slog.New(sloglambda.NewHandler(buffer, sloglambda.WithText(), sloglambda.WithSource()))
 
 			logger.Info(t.Name())
 
-			assert.Contains(t, buffer.String(), `"source":{`)
+			assert.Contains(t, buffer.String(), `source.function=`)
+			assert.Contains(t, buffer.String(), `source.file=`)
+			assert.Contains(t, buffer.String(), `source.line=`)
 		})
 	})
 
@@ -108,8 +138,6 @@ func TestHandler(t *testing.T) {
 		})
 
 		t.Run("Text", func(t *testing.T) {
-			t.Skip("Text formatting is not implemented yet")
-
 			buffer := new(bytes.Buffer)
 			logger := slog.New(sloglambda.NewHandler(buffer, sloglambda.WithText(), sloglambda.WithType(t.Name())))
 
@@ -134,14 +162,12 @@ func TestHandler(t *testing.T) {
 		})
 
 		t.Run("Text", func(t *testing.T) {
-			t.Skip("Text formatting is not implemented yet")
-
 			buffer := new(bytes.Buffer)
 			logger := slog.New(sloglambda.NewHandler(buffer, sloglambda.WithText()))
 
 			logger.InfoContext(ctx, t.Name())
 
-			assert.Contains(t, buffer.String(), `record.requestId:"abc-123"`)
+			assert.Contains(t, buffer.String(), `record.requestId="abc-123"`)
 		})
 	})
 }
@@ -157,8 +183,6 @@ func BenchmarkJSON(b *testing.B) {
 }
 
 func BenchmarkText(b *testing.B) {
-	b.Skip("Text formatting is not implemented yet")
-
 	logger := slog.New(sloglambda.NewHandler(io.Discard, sloglambda.WithText())).WithGroup("benchmark").With("format", "text")
 
 	b.ResetTimer()
