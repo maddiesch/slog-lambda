@@ -31,3 +31,22 @@ func Test_loggerLevelFromString(t *testing.T) {
 		})
 	}
 }
+
+func Test_lambdaLoggerLevelString(t *testing.T) {
+	cases := map[slog.Level]string{
+		slog.LevelDebug - 8: "TRACE-4",
+		slog.LevelDebug - 4: "TRACE",
+		slog.LevelDebug:     "DEBUG",
+		slog.LevelInfo:      "INFO",
+		slog.LevelWarn:      "WARN",
+		slog.LevelError:     "ERROR",
+		slog.LevelError + 4: "FATAL",
+		slog.LevelError + 8: "FATAL+4",
+	}
+
+	for level, str := range cases {
+		t.Run(fmt.Sprintf("%s=%s", level, str), func(t *testing.T) {
+			assert.Equal(t, str, lambdaLoggerLevelString(level))
+		})
+	}
+}

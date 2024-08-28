@@ -3,6 +3,7 @@ package sloglambda
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -19,6 +20,9 @@ const (
 	lambdaEnvLogFormat       = "AWS_LAMBDA_LOG_FORMAT"
 	lambdaEnvFunctionName    = "AWS_LAMBDA_FUNCTION_NAME"
 	lambdaEnvFunctionVersion = "AWS_LAMBDA_FUNCTION_VERSION"
+
+	traceLevelDebugOffset = 4
+	fatalLevelErrorOffset = 4
 )
 
 var (
@@ -102,7 +106,7 @@ func loggerLevelFromLambdaEnv() slog.Level {
 func loggerLevelFromString(level string) slog.Level {
 	switch strings.ToLower(strings.TrimSpace(level)) {
 	case "trace":
-		return slog.LevelDebug - 4
+		return slog.LevelDebug - traceLevelDebugOffset
 	case "debug":
 		return slog.LevelDebug
 	case "warn":
@@ -110,9 +114,33 @@ func loggerLevelFromString(level string) slog.Level {
 	case "error":
 		return slog.LevelError
 	case "fatal":
-		return slog.LevelError + 4
+		return slog.LevelError + fatalLevelErrorOffset
 	default:
 		return slog.LevelInfo
+	}
+}
+
+func lambdaLoggerLevelString(l slog.Level) string {
+	str := func(base string, val slog.Level) string {
+		if val == 0 {
+			return base
+		}
+		return fmt.Sprintf("%s%+d", base, val)
+	}
+
+	switch {
+	case l < slog.LevelDebug:
+		return str("TRACE", l-(slog.LevelDebug-traceLevelDebugOffset))
+	case l < slog.LevelInfo:
+		return str("DEBUG", l-slog.LevelDebug)
+	case l < slog.LevelWarn:
+		return str("INFO", l-slog.LevelInfo)
+	case l < slog.LevelError:
+		return str("WARN", l-slog.LevelWarn)
+	case l < slog.LevelError+fatalLevelErrorOffset:
+		return str("ERROR", l-slog.LevelError)
+	default:
+		return str("FATAL", l-(slog.LevelError+fatalLevelErrorOffset))
 	}
 }
 
@@ -145,7 +173,7 @@ func (h *Handler) Handle(ctx context.Context, record slog.Record) error {
 	value := make(logRecord, 10)
 	topLevel := value
 
-	value.append(slog.Any(slog.LevelKey, record.Level))
+	value.append(slog.String(slog.LevelKey, lambdaLoggerLevelString(record.Level)))
 	value.append(slog.String(slog.MessageKey, record.Message))
 
 	if !record.Time.IsZero() && !h.excludeTime {
