@@ -30,13 +30,14 @@ var (
 )
 
 type Handler struct {
-	out     io.Writer
-	logType string
-	mu      *sync.Mutex
-	level   slog.Level
-	json    bool
-	source  bool
-	gattr   []groupOrAttrs
+	out         io.Writer
+	logType     string
+	mu          *sync.Mutex
+	level       slog.Level
+	json        bool
+	source      bool
+	excludeTime bool
+	gattr       []groupOrAttrs
 }
 
 type Option func(*Handler)
@@ -68,6 +69,12 @@ func WithSource() Option {
 func WithType(logType string) Option {
 	return func(h *Handler) {
 		h.logType = logType
+	}
+}
+
+func WithoutTime() Option {
+	return func(h *Handler) {
+		h.excludeTime = true
 	}
 }
 
@@ -138,7 +145,7 @@ func (h *Handler) Handle(ctx context.Context, record slog.Record) error {
 	value.append(slog.Any(slog.LevelKey, record.Level))
 	value.append(slog.String(slog.MessageKey, record.Message))
 
-	if !record.Time.IsZero() {
+	if !record.Time.IsZero() && !h.excludeTime {
 		value.append(slog.Time(slog.TimeKey, record.Time))
 	}
 
