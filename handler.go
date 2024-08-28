@@ -291,7 +291,7 @@ func (r logRecord) append(attr slog.Attr) {
 
 	switch attr.Value.Kind() {
 	case slog.KindTime:
-		r[attr.Key] = attr.Value.Time().Format(time.RFC3339)
+		r[attr.Key] = attr.Value.Time().Format(time.RFC3339Nano)
 	case slog.KindGroup:
 		group := attr.Value.Group()
 		if len(group) == 0 {
