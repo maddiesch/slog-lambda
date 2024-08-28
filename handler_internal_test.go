@@ -1,6 +1,7 @@
 package sloglambda
 
 import (
+	"bytes"
 	"fmt"
 	"log/slog"
 	"testing"
@@ -93,4 +94,60 @@ func Test_logRecord(t *testing.T) {
 			assert.Equal(t, logRecord{"foo": "bar"}, r)
 		})
 	})
+}
+
+func Test_writeTextRecord(t *testing.T) {
+	t.Run("when the record is empty", func(t *testing.T) {
+		buffer := new(bytes.Buffer)
+		err := writeTextRecord(buffer, logRecord{}, "")
+
+		assert.NoError(t, err)
+		assert.Equal(t, "", buffer.String())
+	})
+
+	t.Run("when the record is nil", func(t *testing.T) {
+		buffer := new(bytes.Buffer)
+		err := writeTextRecord(buffer, nil, "")
+
+		assert.NoError(t, err)
+		assert.Equal(t, "", buffer.String())
+	})
+
+	t.Run("when the record contains a stringer", func(t *testing.T) {
+		buffer := new(bytes.Buffer)
+		err := writeTextRecord(buffer, logRecord{"foo": stringerValue{}}, "")
+
+		assert.NoError(t, err)
+		assert.Equal(t, "foo=stringerValue ", buffer.String())
+	})
+
+	t.Run("when the record contains an int", func(t *testing.T) {
+		buffer := new(bytes.Buffer)
+		err := writeTextRecord(buffer, logRecord{"foo": 1}, "")
+
+		assert.NoError(t, err)
+		assert.Equal(t, "foo=1 ", buffer.String())
+	})
+
+	t.Run("when the record contains a string", func(t *testing.T) {
+		buffer := new(bytes.Buffer)
+		err := writeTextRecord(buffer, logRecord{"bar": "baz"}, "foo")
+
+		assert.NoError(t, err)
+		assert.Equal(t, `foo.bar="baz" `, buffer.String())
+	})
+
+	t.Run("when the record contains a sub-record", func(t *testing.T) {
+		buffer := new(bytes.Buffer)
+		err := writeTextRecord(buffer, logRecord{"bar": logRecord{"baz": 1}}, "foo")
+
+		assert.NoError(t, err)
+		assert.Equal(t, `foo.bar.baz=1 `, buffer.String())
+	})
+}
+
+type stringerValue struct{}
+
+func (s stringerValue) String() string {
+	return "stringerValue"
 }
