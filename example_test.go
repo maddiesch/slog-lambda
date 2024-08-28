@@ -26,3 +26,12 @@ func ExampleWithText() {
 	slog.Info("Hello, world!")
 	// Output: level="INFO" msg="Hello, world!" record.functionName="test-function" record.functionVersion="$LATEST" type="app.log"
 }
+
+func ExampleNewHandler() {
+	handler := sloglambda.NewHandler(os.Stdout)
+	logger := slog.New(handler)
+
+	slog.SetDefault(logger)
+
+	slog.Info("Hello, world!")
+}
