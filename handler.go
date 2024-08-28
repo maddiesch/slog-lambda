@@ -40,7 +40,7 @@ type Handler struct {
 	out         io.Writer
 	logType     string
 	mu          *sync.Mutex
-	level       slog.Level
+	level       slog.Leveler
 	json        bool
 	source      bool
 	excludeTime bool
@@ -52,7 +52,7 @@ type Option func(*Handler)
 // WithLevel configures the log level of the Handler.
 //
 // The log level determines which log messages will be processed by the Handler.
-func WithLevel(level slog.Level) Option {
+func WithLevel(level slog.Leveler) Option {
 	return func(h *Handler) {
 		h.level = level
 	}
