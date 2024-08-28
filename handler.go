@@ -360,6 +360,10 @@ type groupOrAttrs struct {
 }
 
 func writeTextRecord(w io.Writer, record logRecord, path string) error {
+	if record == nil {
+		return nil
+	}
+
 	keys := record.keys()
 	slices.Sort(keys)
 
@@ -382,7 +386,10 @@ func writeTextRecord(w io.Writer, record logRecord, path string) error {
 		case string:
 			w.Write([]byte(strconv.Quote(v)))
 		case fmt.Stringer:
-			w.Write([]byte(v.String()))
+			// This is here because nilaway can't figure out that v is not nil
+			if v != nil {
+				w.Write([]byte(v.String()))
+			}
 		default:
 			fmt.Fprintf(w, "%v", v)
 		}
