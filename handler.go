@@ -264,6 +264,7 @@ func (h *Handler) Handle(ctx context.Context, record slog.Record) error {
 			defer h.mu.Unlock()
 
 			fmt.Fprintf(h.out, `{"level":"ERROR","msg":"failed to encode log record: %v"}`, err)
+			fmt.Fprintln(h.out)
 			return err
 		}
 	} else {
@@ -272,6 +273,7 @@ func (h *Handler) Handle(ctx context.Context, record slog.Record) error {
 			defer h.mu.Unlock()
 
 			fmt.Fprintf(h.out, `level=ERROR msg="failed to encode log record: %v"`, err)
+			fmt.Fprintln(h.out)
 			return err
 		}
 		// Remove the last trailing space
@@ -297,10 +299,7 @@ func (r logRecord) append(attr slog.Attr) {
 		return
 	}
 
-	switch attr.Value.Kind() {
-	case slog.KindTime:
-		r[attr.Key] = attr.Value.Time().Format(time.RFC3339Nano)
-	case slog.KindGroup:
+	if attr.Value.Kind() == slog.KindGroup {
 		group := attr.Value.Group()
 		if len(group) == 0 {
 			return
@@ -316,8 +315,8 @@ func (r logRecord) append(attr slog.Attr) {
 				r[attr.Key].(logRecord).append(a)
 			}
 		}
-	default:
-		r[attr.Key] = attr.Value.Any()
+	} else {
+		r[attr.Key] = normalizeValue(attr.Value)
 	}
 }
 
@@ -408,4 +407,42 @@ func writeTextRecord(w io.Writer, record logRecord, path string) error {
 	}
 
 	return nil
+}
+
+func normalizeValue(v slog.Value) any {
+	switch v.Kind() {
+	case slog.KindTime:
+		return v.Time().Format(time.RFC3339Nano)
+	case slog.KindBool:
+		return v.Bool()
+	case slog.KindDuration:
+		return v.Duration().String()
+	case slog.KindFloat64:
+		return v.Float64()
+	case slog.KindInt64:
+		return v.Int64()
+	case slog.KindString:
+		return v.String()
+	case slog.KindUint64:
+		return v.Uint64()
+	case slog.KindLogValuer, slog.KindAny:
+		return normalizeAnyValue(v.Any())
+	default:
+		panic(fmt.Sprintf("bad kind: %s", v.Kind()))
+	}
+}
+
+func normalizeAnyValue(val any) any {
+	switch v := val.(type) {
+	case error:
+		return v.Error()
+	case json.Marshaler:
+		b, err := v.MarshalJSON()
+		if err != nil {
+			return err.Error()
+		}
+		return string(b)
+	default:
+		return val
+	}
 }
