@@ -31,7 +31,7 @@ const (
 var (
 	kLambdaRecord          = "record"
 	kLambdaFunctionName    = "functionName"
-	kLambdaFunctionVersion = "functionVersion"
+	kLambdaFunctionVersion = "version"
 	kLambdaRequestId       = "requestId"
 	kLambdaLogType         = "type"
 )
@@ -260,10 +260,18 @@ func (h *Handler) Handle(ctx context.Context, record slog.Record) error {
 
 	if h.json {
 		if err := json.NewEncoder(buf).Encode(topLevel); err != nil {
+			h.mu.Lock()
+			defer h.mu.Unlock()
+
+			fmt.Fprintf(h.out, `{"level":"ERROR","msg":"failed to encode log record: %v"}`, err)
 			return err
 		}
 	} else {
 		if err := writeTextRecord(buf, topLevel, ""); err != nil {
+			h.mu.Lock()
+			defer h.mu.Unlock()
+
+			fmt.Fprintf(h.out, `level=ERROR msg="failed to encode log record: %v"`, err)
 			return err
 		}
 		// Remove the last trailing space

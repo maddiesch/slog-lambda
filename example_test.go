@@ -14,7 +14,7 @@ func ExampleWithJSON() {
 	slog.SetDefault(logger)
 
 	slog.Info("Hello, world!")
-	// Output: {"level":"INFO","msg":"Hello, world!","record":{"functionName":"test-function","functionVersion":"$LATEST"},"type":"app.log"}
+	// Output: {"level":"INFO","msg":"Hello, world!","record":{"functionName":"test-function","version":"$LATEST"},"type":"app.log"}
 }
 
 func ExampleWithText() {
@@ -24,7 +24,7 @@ func ExampleWithText() {
 	slog.SetDefault(logger)
 
 	slog.Info("Hello, world!")
-	// Output: level="INFO" msg="Hello, world!" record.functionName="test-function" record.functionVersion="$LATEST" type="app.log"
+	// Output: level="INFO" msg="Hello, world!" record.functionName="test-function" record.version="$LATEST" type="app.log"
 }
 
 func ExampleNewHandler() {
