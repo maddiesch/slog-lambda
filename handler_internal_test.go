@@ -2,9 +2,11 @@ package sloglambda
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -150,4 +152,38 @@ type stringerValue struct{}
 
 func (s stringerValue) String() string {
 	return "stringerValue"
+}
+
+func Test_normalizeValue(t *testing.T) {
+	t.Run("slog.KindBool", func(t *testing.T) {
+		v := slog.BoolValue(true)
+		assert.Equal(t, true, normalizeValue(v))
+	})
+
+	t.Run("slog.KindDuration", func(t *testing.T) {
+		v := slog.DurationValue(1 * time.Second)
+		assert.Equal(t, "1s", normalizeValue(v))
+	})
+
+	t.Run("slog.KindFloat64", func(t *testing.T) {
+		v := slog.Float64Value(1.23)
+		assert.Equal(t, float64(1.23), normalizeValue(v))
+	})
+
+	t.Run("slog.KindUint64", func(t *testing.T) {
+		v := slog.Uint64Value(123)
+		assert.Equal(t, uint64(123), normalizeValue(v))
+	})
+
+	t.Run("slog.KindAny", func(t *testing.T) {
+		t.Run("error", func(t *testing.T) {
+			v := slog.AnyValue(errors.New("testing-error"))
+			assert.Equal(t, "testing-error", normalizeValue(v))
+		})
+
+		t.Run("nil", func(t *testing.T) {
+			v := slog.AnyValue(nil)
+			assert.Equal(t, nil, normalizeValue(v))
+		})
+	})
 }
