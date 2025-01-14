@@ -2,6 +2,7 @@ package sloglambda
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -185,5 +186,35 @@ func Test_normalizeValue(t *testing.T) {
 			v := slog.AnyValue(nil)
 			assert.Equal(t, nil, normalizeValue(v))
 		})
+
+		t.Run("json.Marshaler", func(t *testing.T) {
+			t.Run("success", func(t *testing.T) {
+				v := slog.AnyValue(jsonMarshalerSuccess{})
+
+				assert.Equal(t, `"JSON Marshal"`, normalizeValue(v))
+			})
+
+			t.Run("failure", func(t *testing.T) {
+				v := slog.AnyValue(jsonMarshalerFail{})
+
+				assert.Equal(t, assert.AnError.Error(), normalizeValue(v))
+			})
+		})
 	})
 }
+
+type jsonMarshalerSuccess struct{}
+
+func (jsonMarshalerSuccess) MarshalJSON() ([]byte, error) {
+	return []byte(`"JSON Marshal"`), nil
+}
+
+var _ json.Marshaler = (*jsonMarshalerSuccess)(nil)
+
+type jsonMarshalerFail struct{}
+
+func (jsonMarshalerFail) MarshalJSON() ([]byte, error) {
+	return nil, assert.AnError
+}
+
+var _ json.Marshaler = (*jsonMarshalerFail)(nil)
