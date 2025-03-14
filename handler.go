@@ -1,3 +1,7 @@
+// Package sloglambda provides a structured logger for AWS Lambda functions using the slog package.
+// It supports both JSON and text log formats and allows for configurable log levels.
+// All configuration is done using the AWS Lambda advanced logging environment variables.
+// See https://docs.aws.amazon.com/lambda/latest/dg/monitoring-cloudwatchlogs-advanced.html for more information.
 package sloglambda
 
 import (
