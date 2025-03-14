@@ -5,7 +5,9 @@
 [![Doc](https://godoc.org/github.com/maddiesch/slog-lambda?status.svg)](https://pkg.go.dev/github.com/maddiesch/slog-lambda)
 [![License](https://img.shields.io/github/license/maddiesch/slog-lambda)](./LICENSE)
 
-AWS Lambda `slog.Handler`
+## AWS Lambda `slog.Handler`
+
+A [`log/slog`](https://pkg.go.dev/log/slog) handler for [AWS Lambda advanced logging controls](https://docs.aws.amazon.com/lambda/latest/dg/monitoring-cloudwatchlogs-advanced.html).
 
 ```go
 package main
@@ -19,10 +21,12 @@ import (
 	sloglambda "github.com/maddiesch/slog-lambda"
 )
 
-func main() {
+func init() {
 	logger := slog.New(sloglambda.NewHandler(os.Stdout))
 	slog.SetDefault(logger)
+}
 
+func main() {
 	lambda.Start(func(ctx context.Context, event any) error {
 		slog.InfoContext(ctx, "Lambda Invoked", slog.Any("event", event))
 
