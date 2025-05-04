@@ -74,7 +74,7 @@ jobs:
         run: |-
           PATH="$PATH:$(go env GOROOT)/bin"
 
-          if [ -x gofmt ]; then
+          if ! command -v gofmt >/dev/null; then
             echo "gofmt not found"
             exit 1
           fi
