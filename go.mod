@@ -1,9 +1,11 @@
 module github.com/maddiesch/slog-lambda
 
-go 1.23.0
+go 1.24.0
+
+toolchain go1.24.4
 
 require (
-	github.com/aws/aws-lambda-go v1.48.0
+	github.com/aws/aws-lambda-go v1.49.0
 	github.com/stretchr/testify v1.8.0
 	go.uber.org/goleak v1.3.0
 )
