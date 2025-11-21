@@ -297,8 +297,6 @@ var _ slog.Handler = (*Handler)(nil)
 type logRecord map[string]any
 
 func (r logRecord) append(attr slog.Attr) {
-	attr.Value = attr.Value.Resolve()
-
 	if attr.Equal(slog.Attr{}) {
 		return
 	}
@@ -320,7 +318,7 @@ func (r logRecord) append(attr slog.Attr) {
 			}
 		}
 	} else {
-		r[attr.Key] = normalizeValue(attr.Value.Resolve())
+		r[attr.Key] = normalizeValue(attr.Value)
 	}
 }
 
@@ -429,7 +427,9 @@ func normalizeValue(v slog.Value) any {
 		return v.String()
 	case slog.KindUint64:
 		return v.Uint64()
-	case slog.KindLogValuer, slog.KindAny:
+	case slog.KindLogValuer:
+		return normalizeValue(v.Resolve())
+	case slog.KindAny:
 		return normalizeAnyValue(v.Any())
 	default:
 		panic(fmt.Sprintf("bad kind: %s", v.Kind()))
