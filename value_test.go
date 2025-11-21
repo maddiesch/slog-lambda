@@ -22,4 +22,10 @@ func TestValueTypes(t *testing.T) {
 		req, _ := http.NewRequest("GET", "/foo/bar", nil)
 		logger.InfoContext(t.Context(), t.Name(), slog.Any("request", req))
 	})
+
+	t.Run("http.Request in Group", func(t *testing.T) {
+		logger := slog.New(newHandler(t))
+		req, _ := http.NewRequest("GET", "/foo/bar", nil)
+		logger.InfoContext(t.Context(), t.Name(), slog.Group("http", slog.Any("request", req)))
+	})
 }
