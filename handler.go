@@ -320,7 +320,7 @@ func (r logRecord) append(attr slog.Attr) {
 			}
 		}
 	} else {
-		r[attr.Key] = normalizeValue(attr.Value)
+		r[attr.Key] = normalizeValue(attr.Value.Resolve())
 	}
 }
 
