@@ -431,8 +431,18 @@ func normalizeValue(v slog.Value) any {
 		return normalizeValue(v.Resolve())
 	case slog.KindAny:
 		return normalizeAnyValue(v.Any())
+	case slog.KindGroup:
+		attrs := v.Group()
+		if len(attrs) == 0 {
+			return nil
+		}
+		rec := make(logRecord, len(attrs))
+		for _, a := range attrs {
+			rec.append(a)
+		}
+		return rec
 	default:
-		panic(fmt.Sprintf("bad kind: %s", v.Kind()))
+		return v.String()
 	}
 }
 
