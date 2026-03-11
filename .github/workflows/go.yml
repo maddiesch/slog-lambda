@@ -7,7 +7,7 @@ on:
   schedule:
     - cron: "0 0 * * 6"
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  group: go-${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 jobs:
   security-scan:
