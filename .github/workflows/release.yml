@@ -8,11 +8,13 @@ on:
         required: true
 jobs:
   ci:
+    uses: ./.github/workflows/ci.yml
+  go:
     uses: ./.github/workflows/go.yml
   release:
     runs-on: ubuntu-latest
     if: github.triggering_actor == 'maddiesch'
-    needs: [ci]
+    needs: [ci, go]
     permissions:
       contents: write
     steps:
