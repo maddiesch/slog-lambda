@@ -201,6 +201,43 @@ func Test_normalizeValue(t *testing.T) {
 			})
 		})
 	})
+
+	t.Run("slog.KindGroup", func(t *testing.T) {
+		t.Run("non-empty group", func(t *testing.T) {
+			v := slog.GroupValue(slog.String("key", "value"), slog.Int("num", 42))
+			result := normalizeValue(v)
+			rec, ok := result.(logRecord)
+			require.True(t, ok, "expected logRecord")
+			assert.Equal(t, "value", rec["key"])
+			assert.Equal(t, int64(42), rec["num"])
+		})
+
+		t.Run("empty group", func(t *testing.T) {
+			v := slog.GroupValue()
+			assert.Nil(t, normalizeValue(v))
+		})
+	})
+
+	t.Run("LogValuer resolving to group", func(t *testing.T) {
+		v := slog.AnyValue(groupLogValuer{})
+		result := normalizeValue(v)
+		rec, ok := result.(logRecord)
+		require.True(t, ok, "expected logRecord")
+		assert.Equal(t, "bar", rec["foo"])
+	})
+
+	t.Run("unknown kind returns string", func(t *testing.T) {
+		// Verify default case doesn't panic
+		assert.NotPanics(t, func() {
+			normalizeValue(slog.Value{})
+		})
+	})
+}
+
+type groupLogValuer struct{}
+
+func (groupLogValuer) LogValue() slog.Value {
+	return slog.GroupValue(slog.String("foo", "bar"))
 }
 
 type jsonMarshalerSuccess struct{}

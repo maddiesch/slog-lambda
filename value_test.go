@@ -55,6 +55,26 @@ func TestValueTypes(t *testing.T) {
 			assert.Contains(t, buffer.String(), `group.value="Foo Bar"`)
 		})
 	})
+
+	t.Run("LogValuer resolving to group", func(t *testing.T) {
+		t.Run("top level attr", func(t *testing.T) {
+			logger := slog.New(newHandler(t))
+			logger.InfoContext(t.Context(), t.Name(), "value", groupTestLogValuer{})
+			assert.Contains(t, buffer.String(), `value.foo="bar"`)
+		})
+
+		t.Run("group level attr", func(t *testing.T) {
+			logger := slog.New(newHandler(t))
+			logger.InfoContext(t.Context(), t.Name(), slog.Group("group", "value", groupTestLogValuer{}))
+			assert.Contains(t, buffer.String(), `group.value.foo="bar"`)
+		})
+	})
+}
+
+type groupTestLogValuer struct{}
+
+func (groupTestLogValuer) LogValue() slog.Value {
+	return slog.GroupValue(slog.String("foo", "bar"), slog.Int("num", 42))
 }
 
 type nestedTestLogValuer struct {
