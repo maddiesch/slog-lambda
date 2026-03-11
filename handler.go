@@ -1,7 +1,9 @@
-// Package sloglambda provides a structured logger for AWS Lambda functions using the slog package.
-// It supports both JSON and text log formats and allows for configurable log levels.
-// All configuration is done using the AWS Lambda advanced logging environment variables.
-// See https://docs.aws.amazon.com/lambda/latest/dg/monitoring-cloudwatchlogs-advanced.html for more information.
+// Package sloglambda is a [slog.Handler] for AWS Lambda functions.
+//
+// It auto-configures log format (JSON or text) and level from Lambda's
+// advanced logging environment variables. Options override env values.
+//
+// See https://docs.aws.amazon.com/lambda/latest/dg/monitoring-logs.html
 package sloglambda
 
 import (
@@ -40,6 +42,8 @@ var (
 	kLambdaLogType         = "type"
 )
 
+// Handler implements [slog.Handler] and writes structured log records to an
+// [io.Writer]. Use [NewHandler] to create one.
 type Handler struct {
 	out         io.Writer
 	logType     string
@@ -51,59 +55,59 @@ type Handler struct {
 	gattr       []groupOrAttrs
 }
 
+// Option configures a [Handler]. Pass options to [NewHandler].
 type Option func(*Handler)
 
-// WithLevel configures the log level of the Handler.
-//
-// The log level determines which log messages will be processed by the Handler.
+// WithLevel sets the minimum log level. Messages below this level are dropped.
+// Defaults to the value of AWS_LAMBDA_LOG_LEVEL, or INFO if unset.
 func WithLevel(level slog.Leveler) Option {
 	return func(h *Handler) {
 		h.level = level
 	}
 }
 
-// WithJSON configures the Handler to output log messages in JSON format.
+// WithJSON sets the output format to JSON.
 func WithJSON() Option {
 	return func(h *Handler) {
 		h.json = true
 	}
 }
 
-// WithText configures the Handler to output log messages in text format.
+// WithText sets the output format to key=value text.
 func WithText() Option {
 	return func(h *Handler) {
 		h.json = false
 	}
 }
 
-// WithSource configures the Handler to include source code information in log messages.
+// WithSource adds caller information (function, file, line) to each log record.
 func WithSource() Option {
 	return func(h *Handler) {
 		h.source = true
 	}
 }
 
-// WithType configures the Handler's "type" field to the specified value.
+// WithType sets the "type" field included in every log record.
+// Defaults to "app.log".
 func WithType(logType string) Option {
 	return func(h *Handler) {
 		h.logType = logType
 	}
 }
 
-// WithoutTime configures the Handler to exclude the time field from log messages.
+// WithoutTime omits the timestamp from log output. Useful for testing or when
+// CloudWatch already provides timestamps.
 func WithoutTime() Option {
 	return func(h *Handler) {
 		h.excludeTime = true
 	}
 }
 
-// NewHandler creates a new Handler that writes log messages to the given io.Writer.
+// NewHandler returns a [Handler] that writes to w.
 //
-// The handler will configure itself using the AWS Lambda advanced logging environment variables:
-// - AWS_LAMBDA_LOG_LEVEL: The log level to use. Valid values are "TRACE", "DEBUG", "INFO", "WARN", "ERROR", and "FATAL".
-// - AWS_LAMBDA_LOG_FORMAT: The log format to use. Valid values are "json" and "text".
-//
-// See more here: https://docs.aws.amazon.com/lambda/latest/dg/monitoring-cloudwatchlogs-advanced.html
+// By default it reads AWS_LAMBDA_LOG_LEVEL (TRACE, DEBUG, INFO, WARN, ERROR,
+// FATAL) and AWS_LAMBDA_LOG_FORMAT (json, text) from the environment. Any
+// provided options take precedence over environment values.
 func NewHandler(w io.Writer, options ...Option) *Handler {
 	h := &Handler{
 		out:     w,
