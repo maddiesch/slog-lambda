@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
+	"math"
 	"strconv"
 	"strings"
 	"testing"
@@ -170,6 +172,78 @@ func TestHandler(t *testing.T) {
 			assert.Contains(t, buffer.String(), `record.requestId="abc-123"`)
 		})
 	})
+
+	t.Run("given unencodable values", func(t *testing.T) {
+		tests := []struct {
+			name  string
+			value any
+			text  string
+		}{
+			{"NaN", math.NaN(), "r=NaN"},
+			{"+Inf", math.Inf(1), "r=+Inf"},
+			{"chan", make(chan int), "r=0x"},
+			{"nested failing marshaler", struct{ F failingMarshaler }{}, "r={"},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Run("JSON", func(t *testing.T) {
+					buffer := new(bytes.Buffer)
+					logger := slog.New(sloglambda.NewHandler(buffer, sloglambda.WithJSON()))
+
+					logger.Info("ratio", "r", tt.value, "ok", 1)
+
+					var result map[string]any
+					require.NoError(t, json.Unmarshal(buffer.Bytes(), &result))
+					assert.Equal(t, "INFO", result["level"])
+					assert.Equal(t, "ratio", result["msg"])
+					assert.Equal(t, float64(1), result["ok"])
+					assert.Contains(t, result, "record")
+					assert.IsType(t, "", result["r"])
+					assert.True(t, strings.HasPrefix(result["r"].(string), "!ERROR:"), result["r"])
+				})
+
+				t.Run("Text", func(t *testing.T) {
+					buffer := new(bytes.Buffer)
+					logger := slog.New(sloglambda.NewHandler(buffer, sloglambda.WithText()))
+
+					logger.Info("ratio", "r", tt.value, "ok", 1)
+
+					assert.Contains(t, buffer.String(), `msg="ratio"`)
+					assert.Contains(t, buffer.String(), "ok=1")
+					assert.Contains(t, buffer.String(), tt.text)
+				})
+			})
+		}
+	})
+
+	t.Run("given a value that fails to encode on retry", func(t *testing.T) {
+		buffer := new(bytes.Buffer)
+		logger := slog.New(sloglambda.NewHandler(buffer, sloglambda.WithJSON()))
+
+		logger.Info("ratio", "r", struct{ F *flakyMarshaler }{new(flakyMarshaler)})
+
+		var result map[string]any
+		require.NoError(t, json.Unmarshal(buffer.Bytes(), &result))
+		assert.Equal(t, "ERROR", result["level"])
+		assert.Contains(t, result["msg"], `bad "quoted" value`)
+	})
+}
+
+type flakyMarshaler struct{ calls int }
+
+func (m *flakyMarshaler) MarshalJSON() ([]byte, error) {
+	m.calls++
+	if m.calls%2 == 1 {
+		return nil, errors.New(`bad "quoted" value`)
+	}
+	return []byte(`"ok"`), nil
+}
+
+type failingMarshaler struct{}
+
+func (failingMarshaler) MarshalJSON() ([]byte, error) {
+	return nil, errors.New(`bad "quoted" value`)
 }
 
 func BenchmarkJSON(b *testing.B) {

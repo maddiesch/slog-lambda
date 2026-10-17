@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -268,22 +269,14 @@ func (h *Handler) Handle(ctx context.Context, record slog.Record) error {
 
 	if h.json {
 		if err := json.NewEncoder(buf).Encode(topLevel); err != nil {
-			h.mu.Lock()
-			defer h.mu.Unlock()
-
-			fmt.Fprintf(h.out, `{"level":"ERROR","msg":"failed to encode log record: %v"}`, err)
-			fmt.Fprintln(h.out)
-			return err
+			buf.Reset()
+			topLevel.replaceUnencodable()
+			if err := json.NewEncoder(buf).Encode(topLevel); err != nil {
+				return h.writeJSONFallback(err)
+			}
 		}
 	} else {
-		if err := writeTextRecord(buf, topLevel, ""); err != nil {
-			h.mu.Lock()
-			defer h.mu.Unlock()
-
-			fmt.Fprintf(h.out, `level=ERROR msg="failed to encode log record: %v"`, err)
-			fmt.Fprintln(h.out)
-			return err
-		}
+		writeTextRecord(buf, topLevel, "")
 		// Remove the last trailing space
 		buf.Truncate(buf.Len() - 1)
 		buf.Write([]byte("\n"))
@@ -294,6 +287,19 @@ func (h *Handler) Handle(ctx context.Context, record slog.Record) error {
 
 	_, err := io.Copy(h.out, buf)
 	return err
+}
+
+func (h *Handler) writeJSONFallback(encodeErr error) error {
+	line, _ := json.Marshal(map[string]string{
+		slog.LevelKey:   "ERROR",
+		slog.MessageKey: "failed to encode log record: " + encodeErr.Error(),
+	})
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	_, err := h.out.Write(append(line, '\n'))
+	return errors.Join(encodeErr, err)
 }
 
 var _ slog.Handler = (*Handler)(nil)
@@ -338,6 +344,18 @@ func (r logRecord) clean() {
 	}
 }
 
+func (r logRecord) replaceUnencodable() {
+	for k, v := range r {
+		if lr, ok := v.(logRecord); ok {
+			lr.replaceUnencodable()
+			continue
+		}
+		if _, err := json.Marshal(v); err != nil {
+			r[k] = "!ERROR:" + err.Error()
+		}
+	}
+}
+
 func (r logRecord) keys() []string {
 	keys := make([]string, 0, len(r))
 	for k := range r {
@@ -372,9 +390,9 @@ type groupOrAttrs struct {
 	attrs []slog.Attr // attrs if non-empty
 }
 
-func writeTextRecord(w io.Writer, record logRecord, path string) error {
+func writeTextRecord(w io.Writer, record logRecord, path string) {
 	if record == nil {
-		return nil
+		return
 	}
 
 	keys := record.keys()
@@ -393,9 +411,7 @@ func writeTextRecord(w io.Writer, record logRecord, path string) error {
 
 		switch v := value.(type) {
 		case logRecord:
-			if err := writeTextRecord(w, v, key); err != nil {
-				return err
-			}
+			writeTextRecord(w, v, key)
 		case string:
 			w.Write([]byte(strconv.Quote(v)))
 		case fmt.Stringer:
@@ -411,8 +427,6 @@ func writeTextRecord(w io.Writer, record logRecord, path string) error {
 			w.Write([]byte(" "))
 		}
 	}
-
-	return nil
 }
 
 func normalizeValue(v slog.Value) any {
