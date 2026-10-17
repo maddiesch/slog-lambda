@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -289,21 +290,16 @@ func (h *Handler) Handle(ctx context.Context, record slog.Record) error {
 }
 
 func (h *Handler) writeJSONFallback(encodeErr error) error {
-	line, err := json.Marshal(map[string]string{
+	line, _ := json.Marshal(map[string]string{
 		slog.LevelKey:   "ERROR",
 		slog.MessageKey: "failed to encode log record: " + encodeErr.Error(),
 	})
-	if err != nil {
-		return err
-	}
 
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	if _, err := h.out.Write(append(line, '\n')); err != nil {
-		return err
-	}
-	return encodeErr
+	_, err := h.out.Write(append(line, '\n'))
+	return errors.Join(encodeErr, err)
 }
 
 var _ slog.Handler = (*Handler)(nil)

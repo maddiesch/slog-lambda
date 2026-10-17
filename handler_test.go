@@ -216,6 +216,28 @@ func TestHandler(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("given a value that fails to encode on retry", func(t *testing.T) {
+		buffer := new(bytes.Buffer)
+		logger := slog.New(sloglambda.NewHandler(buffer, sloglambda.WithJSON()))
+
+		logger.Info("ratio", "r", struct{ F *flakyMarshaler }{new(flakyMarshaler)})
+
+		var result map[string]any
+		require.NoError(t, json.Unmarshal(buffer.Bytes(), &result))
+		assert.Equal(t, "ERROR", result["level"])
+		assert.Contains(t, result["msg"], `bad "quoted" value`)
+	})
+}
+
+type flakyMarshaler struct{ calls int }
+
+func (m *flakyMarshaler) MarshalJSON() ([]byte, error) {
+	m.calls++
+	if m.calls%2 == 1 {
+		return nil, errors.New(`bad "quoted" value`)
+	}
+	return []byte(`"ok"`), nil
 }
 
 type failingMarshaler struct{}
