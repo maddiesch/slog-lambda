@@ -275,13 +275,7 @@ func (h *Handler) Handle(ctx context.Context, record slog.Record) error {
 			}
 		}
 	} else {
-		if err := writeTextRecord(buf, topLevel, ""); err != nil {
-			h.mu.Lock()
-			defer h.mu.Unlock()
-
-			fmt.Fprintf(h.out, "level=ERROR msg=%s\n", strconv.Quote("failed to encode log record: "+err.Error()))
-			return err
-		}
+		writeTextRecord(buf, topLevel, "")
 		// Remove the last trailing space
 		buf.Truncate(buf.Len() - 1)
 		buf.Write([]byte("\n"))
@@ -400,9 +394,9 @@ type groupOrAttrs struct {
 	attrs []slog.Attr // attrs if non-empty
 }
 
-func writeTextRecord(w io.Writer, record logRecord, path string) error {
+func writeTextRecord(w io.Writer, record logRecord, path string) {
 	if record == nil {
-		return nil
+		return
 	}
 
 	keys := record.keys()
@@ -421,9 +415,7 @@ func writeTextRecord(w io.Writer, record logRecord, path string) error {
 
 		switch v := value.(type) {
 		case logRecord:
-			if err := writeTextRecord(w, v, key); err != nil {
-				return err
-			}
+			writeTextRecord(w, v, key)
 		case string:
 			w.Write([]byte(strconv.Quote(v)))
 		case fmt.Stringer:
@@ -439,8 +431,6 @@ func writeTextRecord(w io.Writer, record logRecord, path string) error {
 			w.Write([]byte(" "))
 		}
 	}
-
-	return nil
 }
 
 func normalizeValue(v slog.Value) any {
