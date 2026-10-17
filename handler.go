@@ -268,20 +268,18 @@ func (h *Handler) Handle(ctx context.Context, record slog.Record) error {
 
 	if h.json {
 		if err := json.NewEncoder(buf).Encode(topLevel); err != nil {
-			h.mu.Lock()
-			defer h.mu.Unlock()
-
-			fmt.Fprintf(h.out, `{"level":"ERROR","msg":"failed to encode log record: %v"}`, err)
-			fmt.Fprintln(h.out)
-			return err
+			buf.Reset()
+			topLevel.replaceUnencodable()
+			if err := json.NewEncoder(buf).Encode(topLevel); err != nil {
+				return h.writeJSONFallback(err)
+			}
 		}
 	} else {
 		if err := writeTextRecord(buf, topLevel, ""); err != nil {
 			h.mu.Lock()
 			defer h.mu.Unlock()
 
-			fmt.Fprintf(h.out, `level=ERROR msg="failed to encode log record: %v"`, err)
-			fmt.Fprintln(h.out)
+			fmt.Fprintf(h.out, "level=ERROR msg=%s\n", strconv.Quote("failed to encode log record: "+err.Error()))
 			return err
 		}
 		// Remove the last trailing space
@@ -294,6 +292,24 @@ func (h *Handler) Handle(ctx context.Context, record slog.Record) error {
 
 	_, err := io.Copy(h.out, buf)
 	return err
+}
+
+func (h *Handler) writeJSONFallback(encodeErr error) error {
+	line, err := json.Marshal(map[string]string{
+		slog.LevelKey:   "ERROR",
+		slog.MessageKey: "failed to encode log record: " + encodeErr.Error(),
+	})
+	if err != nil {
+		return err
+	}
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if _, err := h.out.Write(append(line, '\n')); err != nil {
+		return err
+	}
+	return encodeErr
 }
 
 var _ slog.Handler = (*Handler)(nil)
@@ -334,6 +350,18 @@ func (r logRecord) clean() {
 			} else {
 				lr.clean()
 			}
+		}
+	}
+}
+
+func (r logRecord) replaceUnencodable() {
+	for k, v := range r {
+		if lr, ok := v.(logRecord); ok {
+			lr.replaceUnencodable()
+			continue
+		}
+		if _, err := json.Marshal(v); err != nil {
+			r[k] = "!ERROR:" + err.Error()
 		}
 	}
 }
